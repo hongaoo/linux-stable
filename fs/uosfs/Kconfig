@@ -1,0 +1,5 @@
+config UOSFS
+	tristate "uos fs support"
+    default m
+	help
+        uos fs support

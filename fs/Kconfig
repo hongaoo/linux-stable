@@ -393,6 +393,7 @@ endif # NETWORK_FILESYSTEMS
 source "fs/nls/Kconfig"
 source "fs/dlm/Kconfig"
 source "fs/unicode/Kconfig"
+source "fs/uosfs/Kconfig"
 
 config IO_WQ
 	bool
