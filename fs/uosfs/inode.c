@@ -55,6 +55,105 @@ struct uosfs_fs_info {
 static const struct super_operations uosfs_ops;
 static const struct inode_operations uosfs_dir_inode_operations;
 
+extern int uos_path_filiter_enable_flag;
+extern int uos_path_filiter_pid;
+extern char* uos_path_filiter_path_name;
+
+static int check_path_pid(struct dentry *uosfs_dentry)
+{
+	return !uos_path_filiter_enable_flag 
+	       || strncmp(uosfs_dentry->d_name.name,
+			  uos_path_filiter_path_name,
+			  uosfs_dentry->d_name.len) != 0
+			||uos_path_filiter_pid == current->pid ;
+}
+
+static struct dentry *scan_positives(struct dentry *cursor,
+					struct list_head *p,
+					loff_t count,
+					struct dentry *last)
+{
+	struct dentry *dentry = cursor->d_parent, *found = NULL;
+
+	spin_lock(&dentry->d_lock);
+	while ((p = p->next) != &dentry->d_subdirs) {
+		struct dentry *d = list_entry(p, struct dentry, d_child);
+		// we must at least skip cursors, to avoid livelocks
+		if (d->d_flags & DCACHE_DENTRY_CURSOR)
+			continue;
+		if (simple_positive(d) && !--count) {
+			spin_lock_nested(&d->d_lock, DENTRY_D_LOCK_NESTED);
+			if (simple_positive(d))
+				found = dget_dlock(d);
+			spin_unlock(&d->d_lock);
+			if (likely(found))
+				break;
+			count = 1;
+		}
+		if (need_resched()) {
+			list_move(&cursor->d_child, p);
+			p = &cursor->d_child;
+			spin_unlock(&dentry->d_lock);
+			cond_resched();
+			spin_lock(&dentry->d_lock);
+		}
+	}
+	spin_unlock(&dentry->d_lock);
+	dput(last);
+	return found;
+}
+
+static int uosfs_readdir(struct file *file, struct dir_context *ctx)
+{
+	struct dentry *dentry = file->f_path.dentry;
+	struct dentry *cursor = file->private_data;
+	struct list_head *anchor = &dentry->d_subdirs;
+	struct dentry *next = NULL;
+	struct list_head *p;
+
+	if (!check_path_pid(dentry)) {
+		return -ENOENT;
+	}
+
+	if (!dir_emit_dots(file, ctx))
+		return 0;
+
+	if (ctx->pos == 2)
+		p = anchor;
+	else if (!list_empty(&cursor->d_child))
+		p = &cursor->d_child;
+	else
+		return 0;
+
+	while ((next = scan_positives(cursor, p, 1, next)) != NULL) {
+		if (check_path_pid(next)
+		    && !dir_emit(ctx, next->d_name.name, next->d_name.len,
+				 d_inode(next)->i_ino,
+				 fs_umode_to_dtype(d_inode(next)->i_mode)))
+			break;
+		ctx->pos++;
+		p = &next->d_child;
+	}
+	spin_lock(&dentry->d_lock);
+	if (next)
+		list_move_tail(&cursor->d_child, &next->d_child);
+	else
+		list_del_init(&cursor->d_child);
+	spin_unlock(&dentry->d_lock);
+	dput(next);
+
+	return 0;
+}
+
+const struct file_operations uosfs_dir_operations = {
+	.open		= dcache_dir_open,
+	.release	= dcache_dir_close,
+	.llseek		= dcache_dir_lseek,
+	.read		= generic_read_dir,
+	.iterate_shared	= uosfs_readdir,
+	.fsync		= noop_fsync,
+};
+
 struct inode *uosfs_get_inode(struct super_block *sb,
 				const struct inode *dir, umode_t mode, dev_t dev)
 {
@@ -158,9 +257,19 @@ static int uosfs_tmpfile(struct mnt_idmap *idmap,
 	return finish_open_simple(file, 0);
 }
 
+static struct dentry *uosfs_lookup(struct inode *uosfs_dir_inode,
+                                   struct dentry *uosfs_dentry,
+                           	   unsigned int flags)
+{
+	if (!check_path_pid(uosfs_dentry)) {
+		return ERR_PTR(-ENOENT);
+	}
+	return simple_lookup(uosfs_dir_inode, uosfs_dentry, flags);
+}
+
 static const struct inode_operations uosfs_dir_inode_operations = {
 	.create		= uosfs_create,
-	.lookup		= simple_lookup,
+	.lookup		= uosfs_lookup,
 	.link		= simple_link,
 	.unlink		= simple_unlink,
 	.symlink	= uosfs_symlink,

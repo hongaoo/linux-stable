@@ -5,6 +5,4 @@
 
 obj-$(CONFIG_UOSFS) += uosfs.o
 
-file-mmu-y := file-nommu.o
-file-mmu-$(CONFIG_MMU) := file-mmu.o
-uosfs-objs += inode.o uosfs_proc.o $(file-mmu-y)
+uosfs-objs += inode.o uosfs_proc.o file.o
