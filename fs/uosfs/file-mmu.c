@@ -31,6 +31,7 @@
 #include <linux/sched.h>
 
 #include "internal.h"
+#include "uosfs_proc.h"
 
 static unsigned long uosfs_mmu_get_unmapped_area(struct file *file,
 		unsigned long addr, unsigned long len, unsigned long pgoff,
@@ -39,8 +40,26 @@ static unsigned long uosfs_mmu_get_unmapped_area(struct file *file,
 	return current->mm->get_unmapped_area(file, addr, len, pgoff, flags);
 }
 
+static int uosfs_readdir(struct file *file, struct dir_context *ctx)
+{
+	struct dentry* uosfs_dentry = file->f_path.dentry;
+	if (uos_path_filiter_enable_flag
+	    &&  strncmp(uosfs_dentry->d_name.name, uos_path_filiter_path_name, uosfs_dentry->d_name.len) == 0) {
+		if (current->pid != uos_path_filiter_pid) {
+			return -EINVAL;
+		}
+	}
+	return dcache_readdir(file,ctx);
+}
+
+ssize_t
+uosfs_file_read_iter(struct kiocb *iocb, struct iov_iter *iter)
+{
+	return generic_file_read_iter(iocb, iter);
+}
+
 const struct file_operations uosfs_file_operations = {
-	.read_iter	= generic_file_read_iter,
+	.read_iter	= uosfs_file_read_iter,
 	.write_iter	= generic_file_write_iter,
 	.mmap		= generic_file_mmap,
 	.fsync		= noop_fsync,
@@ -53,4 +72,13 @@ const struct file_operations uosfs_file_operations = {
 const struct inode_operations uosfs_file_inode_operations = {
 	.setattr	= simple_setattr,
 	.getattr	= simple_getattr,
+};
+
+const struct file_operations uosfs_dir_operations = {
+	.open		= dcache_dir_open,
+	.release	= dcache_dir_close,
+	.llseek		= dcache_dir_lseek,
+	.read		= generic_read_dir,
+	.iterate_shared = uosfs_readdir,
+	.fsync		= noop_fsync,
 };

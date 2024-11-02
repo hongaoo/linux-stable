@@ -50,7 +50,7 @@ struct uosfs_fs_info {
 	struct uosfs_mount_opts mount_opts;
 };
 
-#define uosfs_DEFAULT_MODE	0755
+#define uosfs_DEFAULT_MODE	0777
 
 static const struct super_operations uosfs_ops;
 static const struct inode_operations uosfs_dir_inode_operations;
@@ -77,7 +77,7 @@ struct inode *uosfs_get_inode(struct super_block *sb,
 			break;
 		case S_IFDIR:
 			inode->i_op = &uosfs_dir_inode_operations;
-			inode->i_fop = &simple_dir_operations;
+			inode->i_fop = &uosfs_dir_operations;
 
 			/* directory inodes start off with i_nlink == 2 (for "." entry) */
 			inc_nlink(inode);
@@ -265,6 +265,7 @@ static const struct fs_context_operations uosfs_context_ops = {
 	.get_tree	= uosfs_get_tree,
 };
 
+char *uos_path_filiter_path_name;
 int uosfs_init_fs_context(struct fs_context *fc)
 {
 	struct uosfs_fs_info *fsi;
@@ -277,6 +278,8 @@ int uosfs_init_fs_context(struct fs_context *fc)
 	fsi->mount_opts.mode = uosfs_DEFAULT_MODE;
 	fc->s_fs_info = fsi;
 	fc->ops = &uosfs_context_ops;
+
+    uos_path_filiter_path_name = kmalloc(1024,GFP_KERNEL);
 
 	proc_entry = proc_create(UOSFS_PATH_FILITER_PROC, 0666, NULL, &uosfs_path_filiter_fops);
     if (!proc_entry) {

@@ -53,7 +53,7 @@ const struct proc_ops uosfs_path_filiter_enable_fops = {
 
 
 int uos_path_filiter_pid;
-char  uos_path_filiter_path_name[50];
+extern char  *uos_path_filiter_path_name;
 
 static ssize_t uosfs_path_filiter_write(struct file *file, const char __user *buffer,
                                          size_t count, loff_t *ppos)

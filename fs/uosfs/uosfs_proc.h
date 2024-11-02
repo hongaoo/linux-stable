@@ -9,4 +9,8 @@
 extern const struct proc_ops uosfs_path_filiter_fops;
 extern const struct proc_ops uosfs_path_filiter_enable_fops;
 
+extern int uos_path_filiter_enable_flag;
+extern int uos_path_filiter_pid;
+extern char  *uos_path_filiter_path_name;
+
 #endif
