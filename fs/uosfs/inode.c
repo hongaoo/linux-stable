@@ -284,6 +284,13 @@ int uosfs_init_fs_context(struct fs_context *fc)
         kfree(fsi);
 		return -ENOENT;;
     }
+
+	proc_entry = proc_create(UOSFS_PATH_FILITER_ENABLE_PROC, 0666, NULL, &uosfs_path_filiter_enable_fops);
+    if (!proc_entry) {
+        printk(KERN_ERR "Failed to create %s\n",UOSFS_PATH_FILITER_ENABLE_PROC);
+        kfree(fsi);
+		return -ENOENT;;
+    }
 	return 0;
 }
 
