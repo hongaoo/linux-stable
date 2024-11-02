@@ -14,6 +14,7 @@
 #include <linux/string.h>
 #include <linux/backing-dev.h>
 #include <linux/ramfs.h>
+#include <linux/uosfs.h>
 #include <linux/pagevec.h>
 #include <linux/mman.h>
 #include <linux/sched.h>

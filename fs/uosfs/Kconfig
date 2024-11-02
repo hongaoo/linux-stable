@@ -1,5 +1,5 @@
 config UOSFS
 	tristate "uos fs support"
-    default m
+    default y
 	help
         uos fs support

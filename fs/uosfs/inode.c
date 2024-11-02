@@ -40,6 +40,7 @@
 #include <linux/fs_parser.h>
 #include <linux/seq_file.h>
 #include "internal.h"
+#include "uosfs_proc.h"
 
 struct uosfs_mount_opts {
 	umode_t mode;
@@ -236,7 +237,7 @@ static int uosfs_fill_super(struct super_block *sb, struct fs_context *fc)
 	sb->s_maxbytes		= MAX_LFS_FILESIZE;
 	sb->s_blocksize		= PAGE_SIZE;
 	sb->s_blocksize_bits	= PAGE_SHIFT;
-	sb->s_magic		= uosfs_MAGIC;
+	sb->s_magic		= UOSFS_MAGIC;
 	sb->s_op		= &uosfs_ops;
 	sb->s_time_gran		= 1;
 
@@ -267,6 +268,7 @@ static const struct fs_context_operations uosfs_context_ops = {
 int uosfs_init_fs_context(struct fs_context *fc)
 {
 	struct uosfs_fs_info *fsi;
+	struct proc_dir_entry *proc_entry;
 
 	fsi = kzalloc(sizeof(*fsi), GFP_KERNEL);
 	if (!fsi)
@@ -275,6 +277,13 @@ int uosfs_init_fs_context(struct fs_context *fc)
 	fsi->mount_opts.mode = uosfs_DEFAULT_MODE;
 	fc->s_fs_info = fsi;
 	fc->ops = &uosfs_context_ops;
+
+	proc_entry = proc_create(UOSFS_PATH_FILITER_PROC, 0666, NULL, &uosfs_path_filiter_fops);
+    if (!proc_entry) {
+        printk(KERN_ERR "Failed to create %s\n",UOSFS_PATH_FILITER_PROC);
+        kfree(fsi);
+		return -ENOENT;;
+    }
 	return 0;
 }
 
