@@ -1,0 +1,52 @@
+# kprobes samples
+
+The `samples/kprobes/` directory contains simple loadable kernel modules that
+exercise kprobe instrumentation in a friendly way.
+
+- `kprobe_example.ko` shows how to install a single probe on `kernel_clone`
+  and print register snapshots, as documented in
+  `samples/kprobes/kprobe_example.c`.
+- `kretprobe_example.ko` demonstrates `kretprobe` usage.
+- `kprobe_primary.ko` plants the baseline probe whose log output mirrors
+  `kprobe_example`. Keep this module loaded while you add/remove conflict
+  probes so the optimizer has something to re-optimize.
+- `kprobe_conflict.ko` registers a second probe that targets the same symbol
+  (default is `kernel_clone`). Loading it alongside `kprobe_primary.ko`
+  forces an optimization conflict; unloading it allows the primary probe to
+  reclaim the `OPTIMIZED` state once the optimizer worker runs again.
+
+## Building and running the conflict demo
+
+Enable `CONFIG_SAMPLE_KPROBES` in your kernel configuration and build the
+samples:
+
+```bash
+make samples/kprobes/kprobe_example.ko samples/kprobes/kprobe_primary.ko \
+     samples/kprobes/kprobe_conflict.ko
+```
+
+Load the modules in two steps:
+
+```bash
+sudo insmod samples/kprobes/kprobe_primary.ko primary_symbol=kernel_clone
+sudo insmod samples/kprobes/kprobe_conflict.ko conflict_symbol=kernel_clone
+```
+
+Check `dmesg` (or `/sys/kernel/debug/kprobes/list`) to see both handlers firing
+and verify that the primary probe gets flagged as `OPTIMIZED`. While the
+conflict module is loaded, `kprobe.conflict` temporally occupies the same
+address so the optimizer has to unoptimize the first probe. Removing the
+conflict probe simulates the TODO in `kernel/kprobes.c::__disarm_kprobe`:
+
+```bash
+sudo rmmod kprobe_conflict
+cat /sys/kernel/debug/kprobes/list | grep kernel_clone
+```
+
+The primary probe should reappear as `OPTIMIZED` after the optimizer worker
+finishes processing the deferred work. Finally unload the primary probe when
+you’re done:
+
+```bash
+sudo rmmod kprobe_primary
+```
